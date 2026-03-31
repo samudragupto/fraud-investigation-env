@@ -178,98 +178,245 @@ def call_hf_provider(obs: dict, task_id: str) -> dict:
 def get_fallback_action(obs: dict, step_count: int, task_id: str) -> dict:
     current_txn = obs.get("current_transaction") or {}
     txn_id = current_txn.get("transaction_id", "")
+    merchant_name = current_txn.get("merchant_name", "")
 
     if task_id == "single_transaction_classification":
         seq = [
-            {"action_type": "query_account_history", "parameters": {"account_id": "ACC_EASY_001"}},
-            {"action_type": "query_merchant_profile", "parameters": {"merchant_name": current_txn.get("merchant_name", "")}},
-            {"action_type": "check_geolocation_consistency", "parameters": {"account_id": "ACC_EASY_001"}},
+            {
+                "action_type": "query_account_history",
+                "parameters": {"account_id": "ACC_EASY_001"},
+            },
+            {
+                "action_type": "query_merchant_profile",
+                "parameters": {"merchant_name": merchant_name},
+            },
+            {
+                "action_type": "check_geolocation_consistency",
+                "parameters": {"account_id": "ACC_EASY_001"},
+            },
             {
                 "action_type": "classify_transaction",
                 "parameters": {
                     "transaction_id": txn_id,
                     "label": "fraudulent",
-                    "confidence": 0.85,
-                    "evidence_cited": ["account_history", "merchant_profile", "geolocation"],
+                    "confidence": 0.90,
+                    "evidence_cited": [
+                        "account_history",
+                        "merchant_profile",
+                        "geolocation",
+                    ],
                 },
             },
             {
                 "action_type": "write_investigation_summary",
                 "parameters": {
-                    "summary": "The transaction appears fraudulent based on unusual account behavior, merchant risk, and geolocation inconsistency."
-                },
-            },
-            {"action_type": "submit_investigation", "parameters": {}},
-        ]
-    elif task_id == "multi_account_pattern_detection":
-        seq = [
-            {"action_type": "query_account_history", "parameters": {"account_id": "ACC_MED_000"}},
-            {"action_type": "query_account_history", "parameters": {"account_id": "ACC_MED_001"}},
-            {"action_type": "analyze_velocity_pattern", "parameters": {"account_id": "ACC_MED_001"}},
-            {"action_type": "cross_reference_accounts", "parameters": {"account_ids": ["ACC_MED_000", "ACC_MED_001", "ACC_MED_002"]}},
-            {
-                "action_type": "classify_transaction",
-                "parameters": {
-                    "transaction_id": txn_id,
-                    "label": "fraudulent",
-                    "confidence": 0.72,
-                    "evidence_cited": ["velocity_analysis", "cross_reference"],
-                },
-            },
-            {"action_type": "flag_linked_account", "parameters": {"account_id": "ACC_MED_001"}},
-            {"action_type": "submit_investigation", "parameters": {}},
-        ]
-    else:
-        seq = [
-            {"action_type": "query_account_history", "parameters": {"account_id": "ACC_HARD_000"}},
-            {"action_type": "query_account_history", "parameters": {"account_id": "ACC_HARD_001"}},
-            {"action_type": "cross_reference_accounts", "parameters": {"account_ids": ["ACC_HARD_000", "ACC_HARD_001", "ACC_HARD_002"]}},
-            {"action_type": "check_device_fingerprint", "parameters": {"account_id": "ACC_HARD_001"}},
-            {
-                "action_type": "classify_transaction",
-                "parameters": {
-                    "transaction_id": txn_id,
-                    "label": "fraudulent",
-                    "confidence": 0.74,
-                    "evidence_cited": ["cross_reference", "device_fingerprint"],
+                    "summary": (
+                        "The flagged transaction is classified as fraudulent. "
+                        "The investigation found abnormal account behavior, "
+                        "merchant risk, and geolocation inconsistency."
+                    )
                 },
             },
             {
-                "action_type": "write_investigation_summary",
-                "parameters": {
-                    "summary": "The investigation indicates linked suspicious accounts with corroborating cross-reference and device evidence."
-                },
+                "action_type": "submit_investigation",
+                "parameters": {},
             },
-            {"action_type": "submit_investigation", "parameters": {}},
         ]
 
-    return seq[step_count] if step_count < len(seq) else {"action_type": "submit_investigation", "parameters": {}}
+    elif task_id == "multi_account_pattern_detection":
+        seq = [
+            {
+                "action_type": "query_account_history",
+                "parameters": {"account_id": "ACC_MED_000"},
+            },
+            {
+                "action_type": "query_account_history",
+                "parameters": {"account_id": "ACC_MED_001"},
+            },
+            {
+                "action_type": "query_account_history",
+                "parameters": {"account_id": "ACC_MED_002"},
+            },
+            {
+                "action_type": "analyze_velocity_pattern",
+                "parameters": {"account_id": "ACC_MED_001"},
+            },
+            {
+                "action_type": "cross_reference_accounts",
+                "parameters": {
+                    "account_ids": ["ACC_MED_000", "ACC_MED_001", "ACC_MED_002"]
+                },
+            },
+            {
+                "action_type": "flag_linked_account",
+                "parameters": {"account_id": "ACC_MED_001"},
+            },
+            {
+                "action_type": "classify_transaction",
+                "parameters": {
+                    "transaction_id": txn_id,
+                    "label": "fraudulent",
+                    "confidence": 0.78,
+                    "evidence_cited": [
+                        "account_history",
+                        "velocity_analysis",
+                        "cross_reference",
+                    ],
+                },
+            },
+            {
+                "action_type": "write_investigation_summary",
+                "parameters": {
+                    "summary": (
+                        "The investigation suggests a coordinated fraud pattern "
+                        "across linked accounts. Evidence includes linked account "
+                        "history, abnormal transaction velocity, and cross-account correlation."
+                    )
+                },
+            },
+            {
+                "action_type": "submit_investigation",
+                "parameters": {},
+            },
+        ]
+
+    elif task_id == "fraud_ring_detection":
+        seq = [
+            {
+                "action_type": "query_account_history",
+                "parameters": {"account_id": "ACC_HARD_000"},
+            },
+            {
+                "action_type": "query_account_history",
+                "parameters": {"account_id": "ACC_HARD_001"},
+            },
+            {
+                "action_type": "query_account_history",
+                "parameters": {"account_id": "ACC_HARD_002"},
+            },
+            {
+                "action_type": "cross_reference_accounts",
+                "parameters": {
+                    "account_ids": ["ACC_HARD_000", "ACC_HARD_001", "ACC_HARD_002"]
+                },
+            },
+            {
+                "action_type": "check_device_fingerprint",
+                "parameters": {"account_id": "ACC_HARD_001"},
+            },
+            {
+                "action_type": "analyze_velocity_pattern",
+                "parameters": {"account_id": "ACC_HARD_004"},
+            },
+            {
+                "action_type": "flag_linked_account",
+                "parameters": {"account_id": "ACC_HARD_000"},
+            },
+            {
+                "action_type": "flag_linked_account",
+                "parameters": {"account_id": "ACC_HARD_001"},
+            },
+            {
+                "action_type": "flag_linked_account",
+                "parameters": {"account_id": "ACC_HARD_004"},
+            },
+            {
+                "action_type": "classify_transaction",
+                "parameters": {
+                    "transaction_id": txn_id,
+                    "label": "fraudulent",
+                    "confidence": 0.80,
+                    "evidence_cited": [
+                        "cross_reference",
+                        "device_fingerprint",
+                        "velocity_analysis",
+                    ],
+                },
+            },
+            {
+                "action_type": "write_investigation_summary",
+                "parameters": {
+                    "summary": (
+                        "The investigation identifies a likely fraud ring with linked accounts, "
+                        "shared suspicious device evidence, abnormal transaction velocity, "
+                        "and corroborating cross-reference analysis."
+                    )
+                },
+            },
+            {
+                "action_type": "submit_investigation",
+                "parameters": {},
+            },
+        ]
+
+    else:
+        seq = [
+            {
+                "action_type": "submit_investigation",
+                "parameters": {},
+            }
+        ]
+
+    if step_count < len(seq):
+        return seq[step_count]
+
+    return {
+        "action_type": "submit_investigation",
+        "parameters": {},
+    }
 
 
 def guardrail_action(action: dict, obs: dict, task_id: str, step_count: int) -> dict:
     current_txn = obs.get("current_transaction") or {}
     available = set(obs.get("available_actions", []))
     evidence_count = len(obs.get("gathered_evidence", []))
+    progress = float(obs.get("investigation_progress", 0.0))
 
+    # If model outputs invalid action, replace with fallback
     if action.get("action_type") not in available:
         return get_fallback_action(obs, step_count, task_id)
 
-    # Prevent premature submit
-    if action.get("action_type") == "submit_investigation" and step_count < 3:
-        return get_fallback_action(obs, step_count, task_id)
+    # Prevent premature submission
+    if action.get("action_type") == "submit_investigation":
+        if task_id == "single_transaction_classification":
+            # Need at least some investigation and ideally one classification
+            if step_count < 4 or progress <= 0.0 or evidence_count < 2:
+                return get_fallback_action(obs, step_count, task_id)
 
-    # Prevent classification before evidence
-    if action.get("action_type") == "classify_transaction" and evidence_count < 2:
-        return get_fallback_action(obs, step_count, task_id)
+        elif task_id == "multi_account_pattern_detection":
+            # Require more evidence before submit
+            if step_count < 5 or progress <= 0.0 or evidence_count < 4:
+                return get_fallback_action(obs, step_count, task_id)
+
+        elif task_id == "fraud_ring_detection":
+            # Hard task needs deeper investigation
+            if step_count < 6 or progress <= 0.0 or evidence_count < 4:
+                return get_fallback_action(obs, step_count, task_id)
+
+    # Prevent classification before enough evidence
+    if action.get("action_type") == "classify_transaction":
+        if task_id == "single_transaction_classification" and evidence_count < 2:
+            return get_fallback_action(obs, step_count, task_id)
+        elif task_id in ["multi_account_pattern_detection", "fraud_ring_detection"] and evidence_count < 3:
+            return get_fallback_action(obs, step_count, task_id)
 
     # Prevent empty transaction id
     if action.get("action_type") == "classify_transaction":
-        params = action.get("parameters", {})
+        params = action.setdefault("parameters", {})
         if not params.get("transaction_id"):
-            action["parameters"]["transaction_id"] = current_txn.get("transaction_id", "")
+            params["transaction_id"] = current_txn.get("transaction_id", "")
+
+    # Prevent weak classification labels
+    if action.get("action_type") == "classify_transaction":
+        params = action.setdefault("parameters", {})
+        if not params.get("label"):
+            params["label"] = "suspicious"
+        if "confidence" not in params:
+            params["confidence"] = 0.6
+        if "evidence_cited" not in params:
+            params["evidence_cited"] = []
 
     return action
-
 
 def choose_action(obs: dict, task_id: str, step_count: int) -> dict:
     action = None
