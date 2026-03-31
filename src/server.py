@@ -85,38 +85,64 @@ def grader():
 @app.get("/baseline")
 def baseline():
     """
-    Triggers the baseline script via automated judging.
-    Complies with hackathon requirements by utilizing OPENAI_API_KEY.
+    Trigger baseline inference and return scores for all tasks.
     """
     try:
-        import subprocess
-        import os
-        
         result = subprocess.run(
             ["python", "baseline/inference.py"],
             capture_output=True,
             text=True,
             timeout=600,
-            env={**os.environ},
+            env={
+                **os.environ,
+                "ENV_URL": "http://127.0.0.1:7860",
+            },
         )
 
-        output = result.stdout + result.stderr
+        output = (result.stdout or "") + (
+            ("\n" + result.stderr) if result.stderr else ""
+        )
+
         scores = {}
         for line in output.splitlines():
-            if ":" in line and "0." in line and "Final" not in line and "Step" not in line:
+            if ":" in line and "single_transaction_classification" in line:
                 try:
-                    parts = line.split(":")
-                    if len(parts) == 2:
-                        scores[parts[0].strip()] = float(parts[1].strip())
-                except ValueError:
+                    k, v = line.split(":")
+                    scores[k.strip()] = float(v.strip())
+                except Exception:
+                    pass
+            elif ":" in line and "multi_account_pattern_detection" in line:
+                try:
+                    k, v = line.split(":")
+                    scores[k.strip()] = float(v.strip())
+                except Exception:
+                    pass
+            elif ":" in line and "fraud_ring_detection" in line:
+                try:
+                    k, v = line.split(":")
+                    scores[k.strip()] = float(v.strip())
+                except Exception:
                     pass
 
         return {
-            "status": "ok",
-            "model_used": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            "status": "ok" if result.returncode == 0 else "completed_with_errors",
+            "model_used": os.environ.get(
+                "MODEL_NAME",
+                "meta-llama/Meta-Llama-3.1-8B-Instruct",
+            ),
             "api_key_detected": bool(os.environ.get("OPENAI_API_KEY")),
             "scores": scores,
-            "logs": output[-2000:]
+            "logs": output[-5000:],
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "status": "timeout",
+            "scores": {},
+            "logs": "Baseline timed out after 600 seconds",
         }
     except Exception as e:
-        return {"status": "error", "error": str(e), "scores": {}}
+        return {
+            "status": "error",
+            "scores": {},
+            "logs": str(e),
+        }
