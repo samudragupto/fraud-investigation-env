@@ -216,22 +216,25 @@ def get_fallback_action(obs: dict, step_count: int, task_id: str) -> dict:
             {"action_type": "query_account_history", "parameters": {"account_id": "ACC_MED_000"}},
             {"action_type": "query_account_history", "parameters": {"account_id": "ACC_MED_001"}},
             {"action_type": "query_account_history", "parameters": {"account_id": "ACC_MED_002"}},
+            {"action_type": "analyze_velocity_pattern", "parameters": {"account_id": "ACC_MED_000"}},
             {"action_type": "analyze_velocity_pattern", "parameters": {"account_id": "ACC_MED_001"}},
             {"action_type": "cross_reference_accounts", "parameters": {"account_ids": ["ACC_MED_000", "ACC_MED_001", "ACC_MED_002"]}},
             {
                 "action_type": "classify_transaction",
                 "parameters": {
                     "transaction_id": txn_id,
-                    "label": "fraudulent",
-                    "confidence": 0.78,
+                    "label": "suspicious",
+                    "confidence": 0.68,
                     "evidence_cited": ["account_history", "velocity_analysis", "cross_reference"],
                 },
             },
-            {"action_type": "flag_linked_account", "parameters": {"account_id": "ACC_MED_001"}},
             {
                 "action_type": "write_investigation_summary",
                 "parameters": {
-                    "summary": "The investigation indicates a coordinated fraud pattern supported by linked account history, abnormal velocity, and cross-reference analysis."
+                    "summary": (
+                        "The investigation found linked account behavior and abnormal velocity patterns. "
+                        "The current transaction is classified as suspicious pending broader multi-account review."
+                    )
                 },
             },
             {"action_type": "submit_investigation", "parameters": {}},

@@ -105,22 +105,26 @@ def baseline():
 
         scores = {}
         for line in output.splitlines():
-            if ":" in line and "single_transaction_classification" in line:
+            line = line.strip()
+            if line.startswith("single_transaction_classification:"):
                 try:
-                    k, v = line.split(":")
-                    scores[k.strip()] = float(v.strip())
+                    scores["single_transaction_classification"] = float(
+                        line.split(":", 1)[1].strip()
+                    )
                 except Exception:
                     pass
-            elif ":" in line and "multi_account_pattern_detection" in line:
+            elif line.startswith("multi_account_pattern_detection:"):
                 try:
-                    k, v = line.split(":")
-                    scores[k.strip()] = float(v.strip())
+                    scores["multi_account_pattern_detection"] = float(
+                        line.split(":", 1)[1].strip()
+                    )
                 except Exception:
                     pass
-            elif ":" in line and "fraud_ring_detection" in line:
+            elif line.startswith("fraud_ring_detection:"):
                 try:
-                    k, v = line.split(":")
-                    scores[k.strip()] = float(v.strip())
+                    scores["fraud_ring_detection"] = float(
+                        line.split(":", 1)[1].strip()
+                    )
                 except Exception:
                     pass
 
