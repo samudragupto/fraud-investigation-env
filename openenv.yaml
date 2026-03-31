@@ -1,0 +1,67 @@
+name: fraud-investigation-env
+version: "1.0.0"
+description: >
+  A financial transaction fraud investigation environment
+  where an AI agent acts as a fraud analyst investigating
+  flagged transactions across multiple accounts. Uses
+  Meta Llama 3.1 8B Instruct via free Hugging Face
+  Inference API for baseline agent.
+author: "samudragupto"
+tags:
+  - openenv
+  - fraud-detection
+  - financial
+  - investigation
+  - reinforcement-learning
+  - meta-llama
+
+model:
+  name: meta-llama/Meta-Llama-3.1-8B-Instruct
+  provider: huggingface-inference-api
+  cost: free
+
+tasks:
+  - id: single_transaction_classification
+    name: "Single Transaction Anomaly Classification"
+    difficulty: easy
+    description: >
+      Classify a single flagged transaction as legitimate,
+      suspicious, or fraudulent using account history and
+      transaction metadata.
+    max_steps: 10
+
+  - id: multi_account_pattern_detection
+    name: "Multi-Account Transaction Pattern Detection"
+    difficulty: medium
+    description: >
+      Identify coordinated fraud patterns across 3 accounts
+      with 8-12 flagged transactions.
+    max_steps: 20
+
+  - id: fraud_ring_detection
+    name: "Complex Fraud Ring Detection"
+    difficulty: hard
+    description: >
+      Uncover a fraud ring across 6+ accounts. Map ring
+      structure, separate red herrings, produce
+      investigation report.
+    max_steps: 35
+
+observation_space:
+  type: object
+  fields:
+    - current_transaction: TransactionDetail
+    - account_summary: AccountSummary
+    - gathered_evidence: List[Evidence]
+    - investigation_progress: float
+    - steps_remaining: int
+    - available_actions: List[str]
+    - alerts: List[str]
+
+action_space:
+  type: object
+  fields:
+    - action_type: enum
+    - parameters: dict
+
+reward_range: [-0.40, 0.55]
