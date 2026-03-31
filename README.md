@@ -427,11 +427,11 @@ This ensures:
 
 ## Deployment and Validation Evidence
 
-The environment is deployed and responding successfully on Hugging Face Spaces. The following screenshots provide execution evidence for the live deployment, available tasks, grader outputs, and baseline run behavior.
+The environment is successfully deployed on Hugging Face Spaces and responds correctly to the required OpenEnv-compatible endpoints. The screenshots below provide evidence of live deployment, endpoint behavior, baseline execution, and deterministic grading.
 
 ### 1. Hugging Face Space Running Successfully
 
-This screenshot confirms that the Space is live and responding with a valid JSON status payload.
+This screenshot confirms that the Space is live and serving the environment successfully.
 
 ![Hugging Face Space Running](assets/images/hf-space-running.png)
 
@@ -441,60 +441,110 @@ This screenshot confirms that the Space is live and responding with a valid JSON
 - `model: meta-llama/Meta-Llama-3.1-8B-Instruct`
 
 This verifies:
-- successful Space deployment
-- application startup
-- environment availability
+- successful deployment to Hugging Face Spaces
+- application startup and availability
+- Meta model configuration exposure in the live environment
 
 ---
 
-### 2. Task Enumeration Endpoint
+### 2. Baseline Endpoint Execution with Meta Model
 
-This screenshot shows the `/tasks` endpoint returning the complete task list, including:
-- task IDs
-- names
-- difficulty levels
-- descriptions
-- maximum step counts
-- action schemas
+This screenshot shows the `/baseline` endpoint returning a full baseline run using the Meta model through the Hugging Face inference stack.
 
-![Tasks Endpoint Output](assets/images/tasks-endpoint.png)
+![Baseline Endpoint Output](assets/images/baseline-meta-run.png)
+
+**Observed response highlights**
+- `status: ok`
+- `model_used: meta-llama/Meta-Llama-3.1-8B-Instruct`
+- `api_key_detected: true`
+- task scores returned for all benchmark tasks
+- detailed step-by-step trajectory logs included in the response
+
+**Observed sample scores**
+- `single_transaction_classification: 0.5000`
+- `multi_account_pattern_detection: 0.0000`
+- `fraud_ring_detection: 0.0667`
 
 This verifies:
-- presence of the required 3-task suite
-- difficulty progression from easy to hard
-- action schema exposure required for external agents and validators
+- baseline script is functional
+- Meta model integration is active
+- OpenAI-compatible client flow is working with `OPENAI_API_KEY`
+- all required tasks are evaluated end-to-end
 
 ---
 
 ### 3. Grader Endpoint Output
 
-This screenshot shows a valid grader response with:
-- task identifier
-- bounded score in the range `0.0–1.0`
-- structured grading details
+This screenshot shows the `/grader` endpoint returning a valid score and structured grading details after an episode is completed.
 
 ![Grader Endpoint Output](assets/images/grader-output.png)
 
-**Observed sample output**
+**Observed response**
 - `task_id: fraud_ring_detection`
-- `score: 0.1712`
+- `score: 0.4679`
+- detailed metrics including:
+  - `steps_used`
+  - `classifications_made`
+  - `evidence_gathered`
+  - `accounts_flagged`
 
 This verifies:
-- deterministic grading interface
-- score normalization compliance
-- task-specific grading metadata
+- grader returns normalized scores in the required `0.0–1.0` range
+- grading output is structured and task-aware
+- performance depends on actual episode behavior, not a constant return value
 
 ---
 
-### 4. Baseline Execution Evidence
+### 4. Live Space Request Logs
 
-This screenshot shows the `/baseline` output and detailed episode trace logs. It includes:
-- model selection metadata
-- fallback execution mode when external API credentials are unavailable
-- step-by-step reward progression
-- final scores for all tasks
+This screenshot shows the Hugging Face Space container logs during active interaction with the environment.
 
-![Baseline Execution Output](assets/images/baseline-output.png)
+![Space Logs](assets/images/space-logs.png)
+
+**Observed request activity**
+- `POST /reset HTTP/1.1 200 OK`
+- `POST /step HTTP/1.1 200 OK`
+- `GET /grader HTTP/1.1 200 OK`
+- `GET /baseline HTTP/1.1 200 OK`
+
+This verifies:
+- live endpoint availability
+- successful OpenEnv interaction loop execution
+- proper handling of environment resets and multi-step episodes
+- successful baseline and grader endpoint invocation
+
+---
+
+## Validation Summary
+
+The evidence above demonstrates that the submission satisfies the deployment and endpoint requirements expected by the hackathon validator:
+
+| Validation Item | Evidence |
+|---|---|
+| Hugging Face Space deploys | Live Space status response |
+| `/reset` works | Confirmed in Space logs |
+| `/step` works | Confirmed in Space logs |
+| `/grader` works | Structured grader output shown |
+| `/baseline` works | Full baseline execution output shown |
+| Meta model is integrated | Baseline uses `meta-llama/Meta-Llama-3.1-8B-Instruct` |
+| API key-based inference path works | `api_key_detected: true` in baseline output |
+
+---
+
+## Notes on Baseline Reproducibility
+
+The environment supports both:
+- **Meta model inference mode**, when `OPENAI_API_KEY` is available
+- **deterministic fallback mode**, when external API access is unavailable
+
+This dual-mode design ensures:
+- stable automated validation
+- reproducible evaluation behavior
+- no submission failure due to transient model endpoint issues
+
+For the screenshots above, the baseline was executed with:
+- active API key detection
+- Meta Llama inference path enabled
 
 ## Meta, Hugging Face, and PyTorch Integration
 ### Meta Integration
