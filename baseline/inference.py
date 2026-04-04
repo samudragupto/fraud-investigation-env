@@ -5,15 +5,21 @@ import httpx
 from openai import OpenAI
 from huggingface_hub import InferenceClient
 
-# Expected environment variables per checklist
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/hf-inference/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+# Required by checklist
+API_BASE_URL = os.getenv(
+    "API_BASE_URL",
+    "https://router.huggingface.co/hf-inference/v1",
+)
+MODEL_NAME = os.getenv(
+    "MODEL_NAME",
+    "meta-llama/Meta-Llama-3.1-8B-Instruct",
+)
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-# Optional only if using local image mode
+# Optional if using from_docker_image() style later
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
-# Environment URL for OpenEnv server
+# Internal environment URL
 ENV_URL = os.getenv("ENV_URL", "http://127.0.0.1:7860")
 
 
@@ -232,7 +238,10 @@ def get_fallback_action(obs: dict, step_count: int, task_id: str) -> dict:
             {"action_type": "submit_investigation", "parameters": {}},
         ]
 
-    return seq[step_count] if step_count < len(seq) else {"action_type": "submit_investigation", "parameters": {}}
+    if step_count < len(seq):
+        return seq[step_count]
+
+    return {"action_type": "submit_investigation", "parameters": {}}
 
 
 def guardrail_action(action: dict, obs: dict, task_id: str, step_count: int) -> dict:
@@ -277,18 +286,21 @@ def guardrail_action(action: dict, obs: dict, task_id: str, step_count: int) -> 
 def choose_action(obs: dict, task_id: str, step_count: int) -> dict:
     action = None
 
+    # Primary route: OpenAI client configured via API_BASE_URL / HF_TOKEN
     if HF_TOKEN:
         try:
             action = call_openai_client(obs, task_id)
         except Exception:
             pass
 
+    # Secondary route: HF provider client
     if not action and HF_TOKEN:
         try:
             action = call_hf_provider(obs, task_id)
         except Exception:
             pass
 
+    # Final route: deterministic fallback
     if not action:
         action = get_fallback_action(obs, step_count, task_id)
 
@@ -306,7 +318,6 @@ def run_episode(task_id: str) -> float:
 
     done = False
     step_count = 0
-    final_score = 0.0
 
     while not done:
         action = choose_action(obs, task_id, step_count)
@@ -322,8 +333,11 @@ def run_episode(task_id: str) -> float:
         done = step_data.get("done", False)
 
         print(
-            f"STEP task_id={task_id} step={step_count + 1} "
-            f"action={action.get('action_type')} reward={reward:.4f} done={done}"
+            f"STEP task_id={task_id} "
+            f"step={step_count + 1} "
+            f"action={action.get('action_type')} "
+            f"reward={reward:.4f} "
+            f"done={done}"
         )
 
         step_count += 1
