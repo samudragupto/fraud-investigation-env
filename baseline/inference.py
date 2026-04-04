@@ -5,61 +5,46 @@ import httpx
 from openai import OpenAI
 from huggingface_hub import InferenceClient
 
-ENV_URL = os.environ.get("ENV_URL", "http://127.0.0.1:7860")
-MODEL_NAME = os.environ.get(
-    "MODEL_NAME",
-    "meta-llama/Meta-Llama-3.1-8B-Instruct",
-)
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
-OPENAI_BASE_URL = os.environ.get(
-    "OPENAI_BASE_URL",
-    "https://router.huggingface.co/hf-inference/v1",
-).strip()
+# Expected environment variables per checklist
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/hf-inference/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+# Optional only if using local image mode
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+
+# Environment URL for OpenEnv server
+ENV_URL = os.getenv("ENV_URL", "http://127.0.0.1:7860")
 
 
 SYSTEM_PROMPT = """You are an expert financial fraud analyst.
 
 You must investigate flagged transactions by gathering evidence first,
-then classifying, then optionally writing a summary, and only then submitting.
+then classifying, and only then submitting.
 
-CRITICAL RULES:
-1. Never choose submit_investigation in the first 3 steps.
-2. Always gather evidence before classifying.
-3. Prefer these actions first:
-   - query_account_history
-   - query_merchant_profile
-   - check_geolocation_consistency
-   - analyze_velocity_pattern
-   - cross_reference_accounts
-   - check_device_fingerprint
-4. Only classify after at least 2 evidence-gathering actions.
-5. Only submit after:
-   - at least one classification has been made, or
-   - a summary has been written for medium/hard tasks.
+Rules:
+1. Never submit immediately.
+2. Gather evidence before classifying.
+3. Prefer account history, merchant profile, geolocation, velocity, and cross-reference first.
+4. Return only valid JSON.
 
-Return ONLY valid JSON:
+Schema:
 {
   "action_type": "string",
   "parameters": {}
 }
-No markdown. No explanation.
 """
 
 
 TASK_HINTS = {
     "single_transaction_classification": (
-        "For this task, do not submit early. "
-        "First query account history, then merchant or geolocation, "
-        "then classify the transaction as legitimate, suspicious, or fraudulent."
+        "Investigate one flagged transaction. Query account history, merchant profile, and geolocation before classifying."
     ),
     "multi_account_pattern_detection": (
-        "For this task, first inspect account histories and analyze velocity or cross-reference accounts. "
-        "Do not submit before classification."
+        "Investigate linked accounts. Use account history, velocity analysis, and cross-reference before classifying."
     ),
     "fraud_ring_detection": (
-        "For this task, first query account history and cross-reference accounts. "
-        "Use evidence before classifying or flagging linked accounts. "
-        "Do not submit early."
+        "Investigate a possible fraud ring across multiple accounts. Use account history, cross-reference, device fingerprint, and velocity before classifying."
     ),
 }
 
@@ -122,12 +107,12 @@ def parse_action(text: str) -> dict:
 
 
 def call_openai_client(obs: dict, task_id: str) -> dict:
-    if not OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY not set")
+    if not HF_TOKEN:
+        raise ValueError("HF_TOKEN not set")
 
     client = OpenAI(
-        api_key=OPENAI_API_KEY,
-        base_url=OPENAI_BASE_URL,
+        api_key=HF_TOKEN,
+        base_url=API_BASE_URL,
     )
 
     user_prompt = (
@@ -149,12 +134,12 @@ def call_openai_client(obs: dict, task_id: str) -> dict:
 
 
 def call_hf_provider(obs: dict, task_id: str) -> dict:
-    if not OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY not set")
+    if not HF_TOKEN:
+        raise ValueError("HF_TOKEN not set")
 
     client = InferenceClient(
         provider="featherless-ai",
-        api_key=OPENAI_API_KEY,
+        api_key=HF_TOKEN,
     )
 
     user_prompt = (
@@ -203,12 +188,6 @@ def get_fallback_action(obs: dict, step_count: int, task_id: str) -> dict:
                     "evidence_cited": ["account_history", "merchant_profile", "geolocation"],
                 },
             },
-            {
-                "action_type": "write_investigation_summary",
-                "parameters": {
-                    "summary": "The transaction appears fraudulent based on account history anomaly, merchant risk, and geolocation inconsistency."
-                },
-            },
             {"action_type": "submit_investigation", "parameters": {}},
         ]
     elif task_id == "multi_account_pattern_detection":
@@ -226,15 +205,6 @@ def get_fallback_action(obs: dict, step_count: int, task_id: str) -> dict:
                     "label": "suspicious",
                     "confidence": 0.68,
                     "evidence_cited": ["account_history", "velocity_analysis", "cross_reference"],
-                },
-            },
-            {
-                "action_type": "write_investigation_summary",
-                "parameters": {
-                    "summary": (
-                        "The investigation found linked account behavior and abnormal velocity patterns. "
-                        "The current transaction is classified as suspicious pending broader multi-account review."
-                    )
                 },
             },
             {"action_type": "submit_investigation", "parameters": {}},
@@ -259,19 +229,10 @@ def get_fallback_action(obs: dict, step_count: int, task_id: str) -> dict:
                     "evidence_cited": ["cross_reference", "device_fingerprint", "velocity_analysis"],
                 },
             },
-            {
-                "action_type": "write_investigation_summary",
-                "parameters": {
-                    "summary": "The investigation identifies linked suspicious accounts supported by cross-reference analysis, suspicious device evidence, and transaction velocity anomalies."
-                },
-            },
             {"action_type": "submit_investigation", "parameters": {}},
         ]
 
-    if step_count < len(seq):
-        return seq[step_count]
-
-    return {"action_type": "submit_investigation", "parameters": {}}
+    return seq[step_count] if step_count < len(seq) else {"action_type": "submit_investigation", "parameters": {}}
 
 
 def guardrail_action(action: dict, obs: dict, task_id: str, step_count: int) -> dict:
@@ -288,7 +249,7 @@ def guardrail_action(action: dict, obs: dict, task_id: str, step_count: int) -> 
             if step_count < 4 or progress <= 0.0 or evidence_count < 2:
                 return get_fallback_action(obs, step_count, task_id)
         elif task_id == "multi_account_pattern_detection":
-            if step_count < 5 or progress <= 0.0 or evidence_count < 4:
+            if step_count < 6 or progress <= 0.0 or evidence_count < 4:
                 return get_fallback_action(obs, step_count, task_id)
         elif task_id == "fraud_ring_detection":
             if step_count < 6 or progress <= 0.0 or evidence_count < 4:
@@ -300,7 +261,6 @@ def guardrail_action(action: dict, obs: dict, task_id: str, step_count: int) -> 
         elif task_id in ["multi_account_pattern_detection", "fraud_ring_detection"] and evidence_count < 3:
             return get_fallback_action(obs, step_count, task_id)
 
-    if action.get("action_type") == "classify_transaction":
         params = action.setdefault("parameters", {})
         if not params.get("transaction_id"):
             params["transaction_id"] = current_txn.get("transaction_id", "")
@@ -317,29 +277,26 @@ def guardrail_action(action: dict, obs: dict, task_id: str, step_count: int) -> 
 def choose_action(obs: dict, task_id: str, step_count: int) -> dict:
     action = None
 
-    if OPENAI_API_KEY:
+    if HF_TOKEN:
         try:
             action = call_openai_client(obs, task_id)
-            print("  [Agent: OpenAI SDK -> HF Router]")
         except Exception:
             pass
 
-    if not action and OPENAI_API_KEY:
+    if not action and HF_TOKEN:
         try:
             action = call_hf_provider(obs, task_id)
-            print("  [Agent: HF InferenceClient -> Provider]")
         except Exception:
             pass
 
     if not action:
         action = get_fallback_action(obs, step_count, task_id)
-        print("  [Agent: Rule-Based Fallback]")
 
     return guardrail_action(action, obs, task_id, step_count)
 
 
 def run_episode(task_id: str) -> float:
-    print(f"\nStarting episode: {task_id}")
+    print(f"START task_id={task_id}")
 
     obs = httpx.post(
         f"{ENV_URL}/reset",
@@ -349,7 +306,7 @@ def run_episode(task_id: str) -> float:
 
     done = False
     step_count = 0
-    total_reward = 0.0
+    final_score = 0.0
 
     while not done:
         action = choose_action(obs, task_id, step_count)
@@ -363,33 +320,25 @@ def run_episode(task_id: str) -> float:
         obs = step_data.get("observation", {})
         reward = step_data.get("reward", 0.0)
         done = step_data.get("done", False)
-        total_reward += reward
 
         print(
-            f"  Step {step_count + 1}: "
-            f"{action.get('action_type')} | Reward: {reward:.4f}"
+            f"STEP task_id={task_id} step={step_count + 1} "
+            f"action={action.get('action_type')} reward={reward:.4f} done={done}"
         )
 
         step_count += 1
-        time.sleep(0.7)
+        time.sleep(0.5)
 
-    score = httpx.get(
+    final_score = httpx.get(
         f"{ENV_URL}/grader",
         timeout=30.0,
     ).json().get("score", 0.0)
 
-    print(f"  -> Final Grader Score: {score:.4f}")
-    return score
+    print(f"END task_id={task_id} score={final_score:.4f}")
+    return final_score
 
 
 def main():
-    print("=" * 60)
-    print("META X SCALER HACKATHON BASELINE")
-    print("=" * 60)
-    print(f"Model: {MODEL_NAME}")
-    print(f"OPENAI_API_KEY Present: {bool(OPENAI_API_KEY)}")
-    print(f"ENV_URL: {ENV_URL}")
-
     if not wait_for_env(ENV_URL):
         raise RuntimeError(f"Environment not reachable at {ENV_URL}")
 
@@ -400,11 +349,7 @@ def main():
         task_id = task["id"]
         results[task_id] = run_episode(task_id)
 
-    print("\n" + "=" * 60)
-    print("FINAL SCORES")
-    print("=" * 60)
-    for task_id, score in results.items():
-        print(f"{task_id}: {score:.4f}")
+    print(json.dumps(results))
 
 
 if __name__ == "__main__":

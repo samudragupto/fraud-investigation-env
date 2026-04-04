@@ -84,9 +84,6 @@ def grader():
 
 @app.get("/baseline")
 def baseline():
-    """
-    Trigger baseline inference and return scores for all tasks.
-    """
     try:
         result = subprocess.run(
             ["python", "baseline/inference.py"],
@@ -106,25 +103,11 @@ def baseline():
         scores = {}
         for line in output.splitlines():
             line = line.strip()
-            if line.startswith("single_transaction_classification:"):
+            if line.startswith("{") and line.endswith("}"):
                 try:
-                    scores["single_transaction_classification"] = float(
-                        line.split(":", 1)[1].strip()
-                    )
-                except Exception:
-                    pass
-            elif line.startswith("multi_account_pattern_detection:"):
-                try:
-                    scores["multi_account_pattern_detection"] = float(
-                        line.split(":", 1)[1].strip()
-                    )
-                except Exception:
-                    pass
-            elif line.startswith("fraud_ring_detection:"):
-                try:
-                    scores["fraud_ring_detection"] = float(
-                        line.split(":", 1)[1].strip()
-                    )
+                    parsed = json.loads(line)
+                    if isinstance(parsed, dict):
+                        scores = parsed
                 except Exception:
                     pass
 
@@ -134,7 +117,7 @@ def baseline():
                 "MODEL_NAME",
                 "meta-llama/Meta-Llama-3.1-8B-Instruct",
             ),
-            "api_key_detected": bool(os.environ.get("OPENAI_API_KEY")),
+            "api_key_detected": bool(os.environ.get("HF_TOKEN")),
             "scores": scores,
             "logs": output[-5000:],
         }
