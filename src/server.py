@@ -2,8 +2,9 @@
 import os
 import json
 import subprocess
+from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.responses import JSONResponse
 
 from src.environment import FraudInvestigationEnv
@@ -37,14 +38,17 @@ def health():
 
 
 @app.post("/reset")
-def reset(request: ResetRequest):
+def reset(request: Optional[ResetRequest] = Body(default=None)):
     try:
-        observation = env.reset(task_id=request.task_id)
+        task_id = (
+            request.task_id
+            if request is not None and request.task_id
+            else "single_transaction_classification"
+        )
+        observation = env.reset(task_id=task_id)
         return observation.model_dump()
     except ValueError as e:
-        raise HTTPException(
-            status_code=400, detail=str(e)
-        )
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/step")
