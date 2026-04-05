@@ -286,21 +286,18 @@ def guardrail_action(action: dict, obs: dict, task_id: str, step_count: int) -> 
 def choose_action(obs: dict, task_id: str, step_count: int) -> dict:
     action = None
 
-    # Primary route: OpenAI client configured via API_BASE_URL / HF_TOKEN
     if HF_TOKEN:
         try:
             action = call_openai_client(obs, task_id)
         except Exception:
             pass
 
-    # Secondary route: HF provider client
     if not action and HF_TOKEN:
         try:
             action = call_hf_provider(obs, task_id)
         except Exception:
             pass
 
-    # Final route: deterministic fallback
     if not action:
         action = get_fallback_action(obs, step_count, task_id)
 
@@ -308,7 +305,7 @@ def choose_action(obs: dict, task_id: str, step_count: int) -> dict:
 
 
 def run_episode(task_id: str) -> float:
-    print(f"START task_id={task_id}")
+    print(f"[START] task_id={task_id}")
 
     obs = httpx.post(
         f"{ENV_URL}/reset",
@@ -333,7 +330,7 @@ def run_episode(task_id: str) -> float:
         done = step_data.get("done", False)
 
         print(
-            f"STEP task_id={task_id} "
+            f"[STEP] task_id={task_id} "
             f"step={step_count + 1} "
             f"action={action.get('action_type')} "
             f"reward={reward:.4f} "
@@ -348,7 +345,7 @@ def run_episode(task_id: str) -> float:
         timeout=30.0,
     ).json().get("score", 0.0)
 
-    print(f"END task_id={task_id} score={final_score:.4f}")
+    print(f"[END] task_id={task_id} score={final_score:.4f}")
     return final_score
 
 

@@ -1,4 +1,7 @@
 """FastAPI server with all required endpoints."""
+import os
+import json
+import subprocess
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
@@ -86,7 +89,7 @@ def grader():
 def baseline():
     try:
         result = subprocess.run(
-            ["python", "baseline/inference.py"],
+            ["python", "inference.py"],
             capture_output=True,
             text=True,
             timeout=600,
