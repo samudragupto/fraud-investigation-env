@@ -13,13 +13,11 @@ class GraderMedium(BaseGrader):
     ) -> float:
         ground_truth = scenario.get("ground_truth", {})
         flagged = scenario.get("flagged_transactions", [])
-        linked_truth = scenario.get(
-            "linked_accounts_truth", {}
-        )
+        linked_truth = scenario.get("linked_accounts_truth", {})
         score = 0.0
 
         if not flagged:
-            return 0.0
+            return 0.0001
 
         total_flagged = len(flagged)
         per_txn = 1.0 / max(total_flagged, 1)
@@ -29,13 +27,11 @@ class GraderMedium(BaseGrader):
             for c in state.classifications
         }
 
-        correct_count = 0
         for txn in flagged:
             txn_id = txn.transaction_id
             predicted = classified_map.get(txn_id)
             actual = ground_truth.get(txn_id, "legitimate")
             if predicted == actual:
-                correct_count += 1
                 score += per_txn * 0.5
 
         true_fraud_ids = {
@@ -69,4 +65,5 @@ class GraderMedium(BaseGrader):
             link_score = correct_links / max(total_links, 1)
             score += link_score * 0.2
 
-        return round(min(max(score, 0.0), 1.0), 4)
+        score = min(max(score, 0.0001), 0.9999)
+        return round(score, 4)

@@ -1,6 +1,5 @@
 """Test grading logic."""
 
-import pytest
 from src.graders.grader_easy import GraderEasy
 from src.graders.grader_medium import GraderMedium
 from src.graders.grader_hard import GraderHard
@@ -39,7 +38,7 @@ def test_easy_grader_perfect():
         "key_evidence": ["amount_anomaly"],
     }
     score = grader.grade(state, scenario)
-    assert score == 1.0
+    assert 0.99 < score < 1.0
 
 
 def test_easy_grader_wrong():
@@ -63,7 +62,7 @@ def test_easy_grader_wrong():
         "key_evidence": [],
     }
     score = grader.grade(state, scenario)
-    assert score < 0.5
+    assert 0.0 < score < 0.5
 
 
 def test_grader_returns_bounded_score():
@@ -75,4 +74,34 @@ def test_grader_returns_bounded_score():
         )
         scenario = {"ground_truth": {}, "key_evidence": []}
         score = grader.grade(state, scenario)
-        assert 0.0 <= score <= 1.0
+        assert 0.0 < score < 1.0
+
+
+def test_medium_grader_never_returns_zero_or_one():
+    grader = GraderMedium()
+    state = InvestigationState(
+        task_id="multi_account_pattern_detection",
+        episode_id="test",
+    )
+    scenario = {
+        "ground_truth": {},
+        "flagged_transactions": [],
+        "linked_accounts_truth": {},
+    }
+    score = grader.grade(state, scenario)
+    assert 0.0 < score < 1.0
+
+
+def test_hard_grader_never_returns_zero_or_one():
+    grader = GraderHard()
+    state = InvestigationState(
+        task_id="fraud_ring_detection",
+        episode_id="test",
+    )
+    scenario = {
+        "ground_truth": {},
+        "ring_members": [],
+        "key_evidence": [],
+    }
+    score = grader.grade(state, scenario)
+    assert 0.0 < score < 1.0

@@ -12,7 +12,6 @@ class GraderEasy(BaseGrader):
         scenario: Dict[str, Any],
     ) -> float:
         ground_truth = scenario.get("ground_truth", {})
-        key_evidence = scenario.get("key_evidence", [])
         score = 0.0
 
         correct_classification = False
@@ -26,12 +25,12 @@ class GraderEasy(BaseGrader):
         if correct_classification:
             score += 0.5
 
-        evidence_sources = {
-            e.source for e in state.gathered_evidence
-        }
+        evidence_sources = {e.source for e in state.gathered_evidence}
         relevant_sources = {
-            "account_history", "merchant_profile",
-            "geolocation", "device_fingerprint",
+            "account_history",
+            "merchant_profile",
+            "geolocation",
+            "device_fingerprint",
         }
         cited = len(evidence_sources & relevant_sources)
         if cited >= 2:
@@ -44,4 +43,5 @@ class GraderEasy(BaseGrader):
         elif state.current_step <= 8:
             score += 0.1
 
-        return round(min(max(score, 0.0), 1.0), 4)
+        score = min(max(score, 0.0001), 0.9999)
+        return round(score, 4)
